@@ -2,9 +2,21 @@ library("tseries")
 library(forecast)
 library(fGarch)
 library(rugarch)
+library(fUnitRoots)
 
-training_period = 1:116
-validation_period = 116:128 # Because we are going to take the diff
+# For the differences
+training_period = 1:116 
+retraining_period = 1:128
+validation_period = 116:128
+test_period = 128:136
+
+# For the original series
+training_period_ori = 2:116
+training_period_prev = 1:115
+validation_period_ori = 117:128
+validation_period_prev = 116:127
+test_period_ori = 129:136
+test_period_prev = 128:135
 
 covid <- read.csv('covid.csv')
 plot(ts(covid[,2:4]), main = "Weekly COVID Cases by Country")
@@ -12,11 +24,25 @@ plot(ts(covid[,2:4]), main = "Weekly COVID Cases by Country")
 # Prepare training data
 par(mfrow=c(1,3))
 change.covid.sg = ts(diff(covid$Singapore[training_period]))
+change.covid.sg.retraining = ts(diff(covid$Singapore[retraining_period]))
 plot(change.covid.sg)
 change.covid.uk = ts(diff(covid$United.Kingdom[training_period]))
+change.covid.uk.retraining = ts(diff(covid$United.Kingdom[retraining_period]))
 plot(change.covid.uk)
 change.covid.us = ts(diff(covid$United.States[training_period]))
+change.covid.us.retraining = ts(diff(covid$United.States[retraining_period]))
 plot(change.covid.us)
+
+adf.test(covid$Singapore)
+adf.test(covid$United.Kingdom)
+adf.test(covid$United.States)
+adf.test(covid$Singapore)
+adf.test(covid$United.Kingdom)
+adf.test(covid$United.States)
+adf.test(change.covid.sg)
+adf.test(change.covid.uk)
+adf.test(change.covid.us)
+
 
 # SG - Try ARIMA
 par(mfrow=c(1,2))
@@ -26,6 +52,7 @@ auto.arima(change.covid.sg, ic = "aic")
 auto.arima(change.covid.sg, ic = "bic")
 sg.arima.A = arima(change.covid.sg, order = c(4,0,1))
 tsdiag(sg.arima.A)
+par(mfrow=c(1,1))
 acf(sg.arima.A$residuals ^2)
 
 # SG - Try GARCH
@@ -136,23 +163,32 @@ specG <- ugarchspec(variance.model = list(model = "fGARCH",
 sg.garch.G <- ugarchfit(spec = specG, data = change.covid.sg, solver ='hybrid')
 sg.fc.G = ugarchforecast(sg.garch.G, n.ahead=forecast.length)
 
-valid.change.covid.sg = ts(diff(covid$Singapore[validation_period]))
-accuracy(as.vector(fitted(sg.fc.A)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.B)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.C)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.D)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.E)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.F)), valid.change.covid.sg)
-accuracy(as.vector(fitted(sg.fc.G)), valid.change.covid.sg)
+valid.covid.sg = covid$Singapore[validation_period_ori]
+valid.covid.sg.m1 = covid$Singapore[validation_period_prev]
+accuracy(as.vector(fitted(sg.fc.A)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.B)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.C)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.D)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.E)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.F)) + valid.covid.sg.m1, valid.covid.sg)
+accuracy(as.vector(fitted(sg.fc.G)) + valid.covid.sg.m1, valid.covid.sg)
 
 # SG - Analyse best model
 
 # E is the best model so
 `%nin%` = Negate(`%in%`)
 plot(sg.fc.E,which="all")
-plot(residuals(sg.garch.E))
-accuracy((change.covid.sg-as.vector(residuals(sg.garch.E)))[change.covid.sg %nin% c(0)], change.covid.sg[change.covid.sg %nin% c(0)])
-# MAPE doesn't really make sense especially when true value = 0 or very small
+plot(as.vector(residuals(sg.garch.E)), main = "Residuals for SG", ylab = "Residuals")
+
+train.covid.sg = covid$Singapore[training_period_ori]
+train.covid.sg.m1 = covid$Singapore[training_period_prev]
+accuracy((train.covid.sg.m1+(change.covid.sg-as.vector(residuals(sg.garch.E))))[train.covid.sg %nin% c(0)], train.covid.sg[train.covid.sg %nin% c(0)])
+
+sg.garch.final <- ugarchfit(spec = specE, data = change.covid.sg.retraining, solver ='hybrid')
+test.covid.sg = covid$Singapore[test_period_ori]
+test.covid.sg.m1 = covid$Singapore[test_period_prev]
+sg.fc.final = ugarchforecast(sg.garch.final, n.ahead=8)
+accuracy(as.vector(fitted(sg.fc.final)) + test.covid.sg.m1, test.covid.sg)
 
 # UK - Try ARIMA
 par(mfrow=c(1,2))
@@ -272,23 +308,32 @@ specG <- ugarchspec(variance.model = list(model = "fGARCH",
 uk.garch.G <- ugarchfit(spec = specG, data = change.covid.uk, solver ='hybrid')
 uk.fc.G = ugarchforecast(uk.garch.G, n.ahead=forecast.length)
 
-valid.change.covid.uk = ts(diff(covid$United.Kingdom[validation_period]))
-accuracy(as.vector(fitted(uk.fc.A)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.B)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.C)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.D)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.E)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.F)), valid.change.covid.uk)
-accuracy(as.vector(fitted(uk.fc.G)), valid.change.covid.uk)
+valid.covid.uk = covid$United.Kingdom[validation_period_ori]
+valid.covid.uk.m1 = covid$United.Kingdom[validation_period_prev]
+accuracy(as.vector(fitted(uk.fc.A)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.B)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.C)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.D)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.E)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.F)) + valid.covid.uk.m1, valid.covid.uk)
+accuracy(as.vector(fitted(uk.fc.G)) + valid.covid.uk.m1, valid.covid.uk)
 
 # UK - Analyse best model
 
-# E is the best model so
+# A is the best model so
 `%nin%` = Negate(`%in%`)
-plot(uk.fc.E,which="all")
-plot(residuals(uk.garch.E))
-accuracy((change.covid.uk-as.vector(residuals(uk.garch.E)))[change.covid.uk %nin% c(0)], change.covid.uk[change.covid.uk %nin% c(0)])
-# MAPE doesn't really make sense especially when true value = 0 or very small
+plot(uk.fc.A,which="all")
+plot(as.vector(residuals(uk.garch.A)), main = "Residuals for UK", ylab = "Residuals")
+
+train.covid.uk = covid$United.Kingdom[training_period_ori]
+train.covid.uk.m1 = covid$United.Kingdom[training_period_prev]
+accuracy((train.covid.uk.m1+(change.covid.uk-as.vector(residuals(uk.garch.A))))[train.covid.uk %nin% c(0)], train.covid.uk[train.covid.uk %nin% c(0)])
+
+uk.garch.final <- ugarchfit(spec = specA, data = change.covid.uk.retraining, solver ='hybrid')
+test.covid.uk = covid$United.Kingdom[test_period_ori]
+test.covid.uk.m1 = covid$United.Kingdom[test_period_prev]
+uk.fc.final = ugarchforecast(uk.garch.final, n.ahead=8)
+accuracy(as.vector(fitted(uk.fc.final)) + test.covid.uk.m1, test.covid.uk)
 
 # US - Try ARIMA
 par(mfrow=c(1,2))
@@ -408,20 +453,29 @@ specG <- ugarchspec(variance.model = list(model = "fGARCH",
 us.garch.G <- ugarchfit(spec = specG, data = change.covid.us, solver ='hybrid')
 us.fc.G = ugarchforecast(us.garch.G, n.ahead=forecast.length)
 
-valid.change.covid.us = ts(diff(covid$United.States[validation_period]))
-accuracy(as.vector(fitted(us.fc.A)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.B)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.C)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.D)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.E)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.F)), valid.change.covid.us)
-accuracy(as.vector(fitted(us.fc.G)), valid.change.covid.us)
+valid.covid.us = covid$United.States[validation_period_ori]
+valid.covid.us.m1 = covid$United.States[validation_period_prev]
+accuracy(as.vector(fitted(us.fc.A)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.B)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.C)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.D)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.E)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.F)) + valid.covid.us.m1, valid.covid.us)
+accuracy(as.vector(fitted(us.fc.G)) + valid.covid.us.m1, valid.covid.us)
 
 # US - Analyse best model
 
 # E is the best model so
 `%nin%` = Negate(`%in%`)
 plot(us.fc.E,which="all")
-plot(residuals(us.garch.E))
-accuracy((change.covid.us-as.vector(residuals(us.garch.E)))[change.covid.us %nin% c(0)], change.covid.us[change.covid.us %nin% c(0)])
-# MAPE doesn't really make sense especially when true value = 0 or very small
+plot(as.vector(residuals(us.garch.E)), main = "Residuals for US", ylab = "Residuals")
+
+train.covid.us = covid$United.States[training_period_ori]
+train.covid.us.m1 = covid$United.States[training_period_prev]
+accuracy((train.covid.us.m1+(change.covid.us-as.vector(residuals(us.garch.E))))[train.covid.us %nin% c(0)], train.covid.us[train.covid.us %nin% c(0)])
+
+us.garch.final <- ugarchfit(spec = specE, data = change.covid.us.retraining, solver ='hybrid')
+test.covid.us = covid$United.States[test_period_ori]
+test.covid.us.m1 = covid$United.States[test_period_prev]
+us.fc.final = ugarchforecast(us.garch.final, n.ahead=8)
+accuracy(as.vector(fitted(us.fc.final)) + test.covid.us.m1, test.covid.us)
