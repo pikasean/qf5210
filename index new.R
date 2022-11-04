@@ -37,14 +37,14 @@ index.us[,1] = as.Date(index.us[,1], format = "%m/%d/%Y")
 
 #plot log price series of the 3 indexes
 par(mfrow=c(3,1))
-plot(index.sg[,3], type='l', main='FTSE SG log price')
-plot(index.uk[,3], type='l', main='FTSE100 log price')
-plot(index.us[,3], type='l', main='SP500 log price')
+plot(x=index.sg[,1], y=index.sg[,3], type='l', main='FTSE SG log price')
+plot(x=index.uk[,1], y=index.uk[,3], type='l', main='FTSE100 log price')
+plot(x=index.us[,1], y=index.us[,3], type='l', main='SP500 log price')
 
 #plot log return series of the 3 indexes
-plot(index.sg[,4], type='l', main='FTSE SG return')
-plot(index.uk[,4], type='l', main='FTSE100 return')
-plot(index.us[,4], type='l', main='SP500 return')
+plot(x=index.sg[,1], y=index.sg[,4], type='l', main='FTSE SG return')
+plot(x=index.uk[,1], y=index.uk[,4], type='l', main='FTSE100 return')
+plot(x=index.us[,1], y=index.us[,4], type='l', main='SP500 return')
 
 #test for unit-root nonstationary of log price series
 adfTest(index.sg[,3],lags=5,type="c")
@@ -155,6 +155,11 @@ temp.log.price.m6 = rbind(temp.log.price.m6, temp.log.price.m6[i,]+forecast.retu
 forecast.price.m6 = exp(temp.log.price.m6[2:14,])
 accuracy(as.vector(forecast.price.m6),as.vector(actual.valid.price))
 
+#find MAPE of validation period for each country separately
+accuracy(as.vector(forecast.price.m5[,1]),as.vector(actual.valid.price[,1])) #sg
+accuracy(as.vector(forecast.price.m5[,2]),as.vector(actual.valid.price[,2])) #uk
+accuracy(as.vector(forecast.price.m5[,3]),as.vector(actual.valid.price[,3])) #us
+
 #find MAPE of training period
 actual.train.price = matrix(0,104,3)
 actual.train.price[,1] = index.train.sg$Price[23:126]
@@ -162,6 +167,7 @@ actual.train.price[,2] = index.train.uk$Price[23:126]
 actual.train.price[,3] = index.train.us$Price[23:126]
 
 forecast.return.m5.train=matrix(0,104,3)
+#Note: The package is unable to provide predictions for i in 5:20, as it yields computationally singular systems, perhaps due to having too few data points.
 for(i in 21:124){
 forecast.return.m5.train[i-20,] = VARpred(m5.ref,h=1,orig=i)$pred
 }
@@ -171,6 +177,11 @@ temp.log.price.m5.train = rbind(temp.log.price.m5.train, temp.log.price.m5.train
 }
 forecast.price.m5.train = exp(temp.log.price.m5.train[2:105,])
 accuracy(as.vector(forecast.price.m5.train),as.vector(actual.train.price))
+
+#find MAPE of training period for each country separately
+accuracy(as.vector(forecast.price.m5.train[,1]),as.vector(actual.train.price[,1])) #sg
+accuracy(as.vector(forecast.price.m5.train[,2]),as.vector(actual.train.price[,2])) #uk
+accuracy(as.vector(forecast.price.m5.train[,3]),as.vector(actual.train.price[,3])) #us
 
 
 #test period: retrain model and forecast
@@ -194,6 +205,12 @@ temp.log.price.m5.extend = rbind(temp.log.price.m5.extend, temp.log.price.m5.ext
 }
 forecast.price.m5.extend = exp(temp.log.price.m5.extend[2:10,])
 accuracy(as.vector(forecast.price.m5.extend),as.vector(actual.test.price))
+
+#find MAPE of test period for each country separately
+accuracy(as.vector(forecast.price.m5.extend[,1]),as.vector(actual.test.price[,1])) #sg
+accuracy(as.vector(forecast.price.m5.extend[,2]),as.vector(actual.test.price[,2])) #uk
+accuracy(as.vector(forecast.price.m5.extend[,3]),as.vector(actual.test.price[,3])) #us
+
 
 #Graphs
 par(mfrow=c(3,1))
